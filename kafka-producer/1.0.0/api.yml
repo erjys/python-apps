@@ -1,0 +1,42 @@
+walkoff_version: 1.0.0
+app_version: 1.0.0
+name: kafka-producer
+description: Send messages to a Kafka topic.
+contact_info:
+  name: Zymr
+  email: zymr@zymr.com
+actions:
+  - name: send_message_to_kafka_topic
+    description: Send a message to Kafka topic
+    parameters:
+      - name: json_data
+        description: Optional JSON payload passed through (unused)
+        required: false
+        multiline: true
+        example: '{}'
+        schema:
+          type: string
+      - name: bootstrap_servers
+        description: Kafka broker address (host:port)
+        required: true
+        multiline: false
+        example: 'kafka:9092'
+        schema:
+          type: string
+      - name: topic
+        description: Kafka topic name
+        required: true
+        multiline: false
+        example: 'test-topic'
+        schema:
+          type: string
+      - name: message
+        description: Message to publish (used if json_data not provided)
+        required: true
+        multiline: true
+        example: 'Hello from Shuffle'
+        schema:
+          type: string
+    returns:
+      schema:
+        type: string

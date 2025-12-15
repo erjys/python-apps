@@ -1,0 +1,71 @@
+walkoff_version: 1.0.0
+app_version: 1.0.0
+name: rabbitmq-publisher
+description: Publish messages to a RabbitMQ exchange.
+contact_info:
+  name: Gradient Team
+  email: support@gradient.com
+actions:
+  - name: publish_message
+    description: Publish a JSON message to a RabbitMQ exchange with a routing key.
+    parameters:
+      - name: rabbitmq_host
+        description: RabbitMQ server hostname or IP.
+        required: true
+        multiline: false
+        example: 'rabbitmq'
+        schema:
+          type: string
+      - name: port
+        description: RabbitMQ server port.
+        required: false
+        multiline: false
+        example: '5672'
+        schema:
+          type: string
+      - name: virtual_host
+        description: RabbitMQ virtual host.
+        required: false
+        multiline: false
+        example: '/'
+        schema:
+          type: string
+      - name: username
+        description: Username for RabbitMQ authentication.
+        required: false
+        multiline: false
+        example: 'guest'
+        schema:
+          type: string
+      - name: password
+        description: Password for RabbitMQ authentication.
+        required: false
+        multiline: false
+        example: 'guest'
+        schema:
+          type: string
+      - name: exchange
+        description: Exchange to publish the message to.
+        required: true
+        multiline: false
+        example: 'amq.topic'
+        schema:
+          type: string
+      - name: routing_key
+        description: Routing key that will be used for publishing.
+        required: true
+        multiline: false
+        example: 'demo.key'
+        schema:
+          type: string
+      - name: message_body
+        description: JSON message payload or plain-text string.
+        required: true
+        multiline: true
+        example: '{"key": "value"}'
+        schema:
+          type: string
+    returns:
+      schema:
+        type: string
+

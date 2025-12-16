@@ -5,6 +5,7 @@ description: Publish messages to a RabbitMQ exchange.
 contact_info:
   name: Gradient Team
   email: support@gradient.com
+large_image: gcr.io/athena-dashboards-dev-473210/shuffle:rabbitmq-publisher_1.0.0
 actions:
   - name: publish_message
     description: Publish a JSON message to a RabbitMQ exchange with a routing key.

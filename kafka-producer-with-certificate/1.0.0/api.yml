@@ -1,0 +1,143 @@
+walkoff_version: 1.0.0
+app_version: 1.1.0
+name: kafka-producer
+description: Send messages to Kafka topic with full configuration support (SSL/Plaintext, custom settings)
+contact_info:
+  name: Gradient Cyber
+  email: support@gradientcyber.com
+actions:
+  - name: send_message_to_kafka_topic
+    description: Send a message to Kafka topic with configurable SSL/Plaintext security
+    parameters:
+      - name: bootstrap_servers
+        description: Comma-separated Kafka broker addresses (host:port)
+        required: true
+        multiline: false
+        example: 'kafka:9092'
+        schema:
+          type: string
+      - name: topic
+        description: Kafka topic name to publish message to
+        required: true
+        multiline: false
+        example: 'detections.biflow.ocsf'
+        schema:
+          type: string
+      - name: message
+        description: Message to publish (string or JSON)
+        required: true
+        multiline: true
+        example: '{"event": "test", "timestamp": "2024-01-01T00:00:00Z"}'
+        schema:
+          type: string
+      - name: security_protocol
+        description: Security protocol for Kafka connection
+        required: false
+        multiline: false
+        example: 'SSL'
+        schema:
+          type: string
+        options:
+          - 'PLAINTEXT'
+          - 'SSL'
+          - 'SASL_PLAINTEXT'
+          - 'SASL_SSL'
+      - name: ssl_ca_location
+        description: Upload CA certificate (.pem file)
+        required: false
+        multiline: false
+        example: ''
+        schema:
+          type: file
+      - name: ssl_certificate_location
+        description: Upload client certificate (.pem file)
+        required: false
+        multiline: false
+        example: ''
+        schema:
+          type: file
+      - name: ssl_key_location
+        description: Upload client private key (.pem file)
+        required: false
+        multiline: false
+        example: ''
+        schema:
+          type: file
+      - name: ssl_key_password
+        description: Password for SSL key file
+        required: false
+        multiline: false
+        example: 'password123'
+        schema:
+          type: string
+      - name: sasl_mechanism
+        description: SASL mechanism (if using SASL_* security protocol)
+        required: false
+        multiline: false
+        example: 'PLAIN'
+        schema:
+          type: string
+        options:
+          - 'PLAIN'
+          - 'SCRAM-SHA-256'
+          - 'SCRAM-SHA-512'
+      - name: sasl_username
+        description: SASL username (if using SASL)
+        required: false
+        multiline: false
+        example: 'kafka-user'
+        schema:
+          type: string
+      - name: sasl_password
+        description: SASL password (if using SASL)
+        required: false
+        multiline: false
+        example: 'kafka-password'
+        schema:
+          type: string
+      - name: acks
+        description: Acknowledgement level for producer
+        required: false
+        multiline: false
+        example: 'all'
+        schema:
+          type: string
+        options:
+          - '0'
+          - '1'
+          - 'all'
+      - name: retries
+        description: Number of retries for failed messages
+        required: false
+        multiline: false
+        example: '5'
+        schema:
+          type: string
+      - name: timeout_ms
+        description: Request timeout in milliseconds
+        required: false
+        multiline: false
+        example: '30000'
+        schema:
+          type: string
+      - name: message_key
+        description: Optional key for the message (used for partitioning)
+        required: false
+        multiline: false
+        example: 'user-123'
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+        properties:
+          success:
+            type: boolean
+          message:
+            type: string
+          topic:
+            type: string
+          partition:
+            type: integer
+          offset:
+            type: integer

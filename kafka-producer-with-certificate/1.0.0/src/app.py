@@ -3,8 +3,8 @@ import sys
 import logging
 import os
 from confluent_kafka import Producer
-from shuffle_sdk.shuffle import Shuffle
-
+from walkoff_app_sdk.app_base import Shuffle
+ 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

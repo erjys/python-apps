@@ -1,6 +1,7 @@
 walkoff_version: 1.0.0
 app_version: 1.1.0
-name: kafka-producer
+name: kafka-producer-with-certificate
+display_name: Kafka Producer with Certificate Support
 description: Send messages to Kafka topic with full configuration support (SSL/Plaintext, custom settings)
 contact_info:
   name: Gradient Cyber
@@ -139,5 +140,10 @@ actions:
             type: string
           partition:
             type: integer
+            nullable: true
           offset:
             type: integer
+            nullable: true
+          error:
+            type: string
+            nullable: true

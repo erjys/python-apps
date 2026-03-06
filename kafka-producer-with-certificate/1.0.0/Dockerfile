@@ -17,4 +17,4 @@ RUN apk --no-cache add --update librdkafka
 COPY --from=builder /install /usr/local
 COPY api.yml src/ /app/
 WORKDIR /app
-CMD ["python", "app.py", "--log-level", "DEBUG"]
+CMD ["python", "app.py"]

@@ -2,11 +2,15 @@ import json
 import sys
 import logging
 import os
+import traceback
 from confluent_kafka import Producer
 from walkoff_app_sdk.app_base import Shuffle
  
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 def _validate_certificate_file(file_path, file_type="certificate"):
@@ -213,8 +217,13 @@ def send_message_to_kafka_topic(
 
 
 if __name__ == "__main__":
-    # Initialize Shuffle SDK for workflow integration
-    client = Shuffle()
-    
-    # Get action
-    client.run_app()
+    try:
+        # Initialize Shuffle SDK for workflow integration
+        client = Shuffle()
+        logger.info("Starting Shuffle app - kafka-producer-with-certificate")
+        
+        # Get action
+        client.run_app()
+    except Exception as e:
+        logger.error(f"Fatal error in app execution: {str(e)}", exc_info=True)
+        sys.exit(1)

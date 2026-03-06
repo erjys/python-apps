@@ -1,2 +1,2 @@
-confluent-kafka
-shuffle-sdk
+confluent-kafka==2.5.0
+shuffle-sdk>=0.0.35

@@ -1,17 +1,20 @@
-FROM gcr.io/prj-quorum-gc-prod-45bd/shuffle/app_sdk:working as base
+FROM gcr.io/prj-quorum-gc-prod-45bd/shuffle/app_sdk:working AS base
 
-FROM base as builder
-RUN apk --no-cache add --update alpine-sdk libffi libffi-dev musl-dev openssl-dev
+FROM base AS builder
+RUN apk --no-cache add --update \
+    alpine-sdk \
+    librdkafka-dev \
+    libffi-dev \
+    openssl-dev
 
-RUN mkdir /install
 WORKDIR /install
-COPY requirements.txt /requirements.txt
-RUN pip install --prefix="/install" -r /requirements.txt
+COPY requirements.txt .
+RUN pip install --upgrade pip \
+    && pip install --prefix="/install" -r requirements.txt
 
-# Final image
 FROM base
+RUN apk --no-cache add --update librdkafka
 COPY --from=builder /install /usr/local
-COPY api.yml /app/
-COPY src/app.py /app/
+COPY api.yml src/ /app/
 WORKDIR /app
 CMD ["python", "app.py", "--log-level", "DEBUG"]

@@ -44,21 +44,20 @@ class KafkaProducerWithCertificate(AppBase):
         timeout_ms="30000",
         message_key=None
     ):
+        """Send a message to a Kafka topic with configurable security settings."""
         try:
+            # Validate certificate files
             cert_files = {'ca': None, 'cert': None, 'key': None}
-
+            
             if security_protocol in ['SSL', 'SASL_SSL']:
-                try:
-                    if ssl_ca_location:
-                        cert_files['ca'] = self._validate_certificate_file(ssl_ca_location, "CA certificate")
-                    if ssl_certificate_location:
-                        cert_files['cert'] = self._validate_certificate_file(ssl_certificate_location, "Client certificate")
-                    if ssl_key_location:
-                        cert_files['key'] = self._validate_certificate_file(ssl_key_location, "Client key")
-                except (FileNotFoundError, PermissionError) as e:
-                    self.logger.error(f"Certificate validation failed: {str(e)}")
-                    return json.dumps({'success': False, 'error': str(e)})
+                if ssl_ca_location:
+                    cert_files['ca'] = self._validate_certificate_file(ssl_ca_location, "CA certificate")
+                if ssl_certificate_location:
+                    cert_files['cert'] = self._validate_certificate_file(ssl_certificate_location, "Client certificate")
+                if ssl_key_location:
+                    cert_files['key'] = self._validate_certificate_file(ssl_key_location, "Client key")
 
+            # Build producer configuration
             config = {
                 'bootstrap.servers': bootstrap_servers,
                 'acks': acks,
@@ -67,6 +66,7 @@ class KafkaProducerWithCertificate(AppBase):
                 'security.protocol': security_protocol,
             }
 
+            # Add SSL configuration
             if security_protocol in ['SSL', 'SASL_SSL']:
                 if cert_files['ca']:
                     config['ssl.ca.location'] = cert_files['ca']
@@ -77,6 +77,7 @@ class KafkaProducerWithCertificate(AppBase):
                 if ssl_key_password:
                     config['ssl.key.password'] = ssl_key_password
 
+            # Add SASL configuration
             if security_protocol in ['SASL_PLAINTEXT', 'SASL_SSL']:
                 if sasl_mechanism:
                     config['sasl.mechanism'] = sasl_mechanism
@@ -84,3 +85,19 @@ class KafkaProducerWithCertificate(AppBase):
                     config['sasl.username'] = sasl_username
                 if sasl_password:
                     config['sasl.password'] = sasl_password
+
+            # Create producer and send message
+            producer = Producer(config)
+            
+            if message_key:
+                producer.produce(topic, key=message_key.encode('utf-8'), value=message.encode('utf-8'))
+            else:
+                producer.produce(topic, value=message.encode('utf-8'))
+            
+            producer.flush()
+            self.logger.info(f"Message sent successfully to topic: {topic}")
+            return json.dumps({'success': True, 'message': 'Message sent successfully'})
+
+        except Exception as e:
+            self.logger.error(f"Error sending message to Kafka: {str(e)}")
+            return json.dumps({'success': False, 'error': str(e)})

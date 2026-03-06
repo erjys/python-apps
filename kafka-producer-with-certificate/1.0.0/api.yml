@@ -3,6 +3,7 @@ app_version: 1.1.0
 name: kafka-producer-with-certificate
 display_name: Kafka Producer with Certificate Support
 description: Send messages to Kafka topic with full configuration support (SSL/Plaintext, custom settings)
+docker_image: gcr.io/prj-quorum-gc-prod-45bd/shuffle/kafka-producer-with-certificate:1.0.0
 contact_info:
   name: Gradient Cyber
   email: support@gradientcyber.com

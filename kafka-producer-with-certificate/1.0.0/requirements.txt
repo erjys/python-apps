@@ -1,2 +1,3 @@
 confluent-kafka==2.5.0
 shuffle-sdk>=0.0.35
+kafka-python

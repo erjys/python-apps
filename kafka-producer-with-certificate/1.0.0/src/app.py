@@ -6,11 +6,32 @@ from kafka import KafkaProducer
 from kafka.errors import KafkaError
 from walkoff_app_sdk.app_base import AppBase
 
-# Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+
+def _safe_int(value, default):
+    """Safely convert value to int, returning default if empty/None/invalid."""
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip() == "":
+        return default
+    try:
+        return int(str(value).strip())
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_str(value, default=""):
+    """Return stripped string or default if empty/None."""
+    if value is None:
+        return default
+    stripped = str(value).strip()
+    return stripped if stripped != "" else default
 
 
 class KafkaProducerWithCertificate(AppBase):
@@ -19,63 +40,46 @@ class KafkaProducerWithCertificate(AppBase):
 
     def __init__(self, redis, logger, console_logger=None):
         super().__init__(redis, logger, console_logger)
-        self.temp_cert_files = []  # Track temporary files for cleanup
+        self.temp_cert_files = []
 
     def _create_temp_cert_file(self, cert_content, cert_type="certificate"):
         """
-        Create a temporary file from certificate content string.
-        
-        Args:
-            cert_content: Certificate content as string
-            cert_type: Type of certificate for logging
-            
-        Returns:
-            Path to temporary file or None if content is empty
+        Write PEM certificate content string to a temporary file.
+        Returns temp file path, or None if content is empty.
         """
-        if not cert_content or cert_content.strip() == "":
-            self.logger.debug(f"No {cert_type} content provided, skipping file creation")
+        if not cert_content or str(cert_content).strip() == "":
+            self.logger.debug(f"No {cert_type} content provided, skipping")
             return None
-        
+
         try:
-            # Create temporary file that persists until explicitly deleted
             temp_file = tempfile.NamedTemporaryFile(
                 mode='w',
                 delete=False,
                 suffix='.pem',
                 prefix=f'kafka_{cert_type}_'
             )
-            
-            # Write certificate content
             temp_file.write(cert_content.strip())
             temp_file.flush()
             temp_file.close()
-            
-            # Track for cleanup
+
             self.temp_cert_files.append(temp_file.name)
-            
-            # Set appropriate permissions (readable by owner)
             os.chmod(temp_file.name, 0o600)
-            
-            self.logger.info(f"Created temporary {cert_type} file: {temp_file.name}")
-            self.logger.debug(f"{cert_type} content length: {len(cert_content)} characters")
-            
+
+            self.logger.info(f"Created temp {cert_type} file: {temp_file.name}")
             return temp_file.name
-            
+
         except Exception as e:
-            error_msg = f"Failed to create temporary {cert_type} file: {str(e)}"
-            self.logger.error(error_msg)
-            raise RuntimeError(error_msg)
+            raise RuntimeError(f"Failed to create temp {cert_type} file: {e}")
 
     def _cleanup_temp_files(self):
-        """Clean up all temporary certificate files."""
+        """Remove all temporary certificate files created during execution."""
         for temp_file in self.temp_cert_files:
             try:
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
-                    self.logger.debug(f"Cleaned up temporary file: {temp_file}")
+                    self.logger.debug(f"Removed temp file: {temp_file}")
             except Exception as e:
-                self.logger.warning(f"Failed to cleanup temp file {temp_file}: {e}")
-        
+                self.logger.warning(f"Could not remove temp file {temp_file}: {e}")
         self.temp_cert_files.clear()
 
     def send_message_to_kafka_topic(
@@ -88,231 +92,168 @@ class KafkaProducerWithCertificate(AppBase):
         ssl_certificate_content: str = "",
         ssl_key_content: str = "",
         ssl_key_password: str = "",
-        sasl_mechanism: str = "",
-        sasl_username: str = "",
-        sasl_password: str = "",
         acks: str = "all",
         retries: str = "3",
-        timeout_ms: str = "10000",
-        message_key: str = "",
-        json_data: str = ""  # Keep for backward compatibility but ignore
     ) -> str:
         """
-        Send a message to a Kafka topic with configurable security settings.
-        Certificate content is provided as text instead of file paths.
-        
+        Send a message to a Kafka topic with configurable SSL security settings.
+
         Args:
-            bootstrap_servers: Comma-separated list of Kafka broker addresses (e.g., "localhost:9092")
-            topic: Kafka topic name
-            message: Message payload to send
-            security_protocol: Security protocol (PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL)
-            ssl_ca_content: CA certificate content (PEM format) as text
-            ssl_certificate_content: Client certificate content (PEM format) as text
-            ssl_key_content: Client private key content (PEM format) as text
-            ssl_key_password: Password for encrypted client key (optional)
-            sasl_mechanism: SASL mechanism (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI)
-            sasl_username: SASL username
-            sasl_password: SASL password
-            acks: Acknowledgment level (0, 1, all)
-            retries: Number of retries (default: 3)
-            timeout_ms: Request timeout in milliseconds (default: 10000)
-            message_key: Optional message key for partitioning
-            
+            bootstrap_servers : Kafka broker address(es), e.g. "broker:9093"
+            topic             : Target Kafka topic name
+            message           : Message payload (plain string or JSON)
+            security_protocol : PLAINTEXT | SSL | SASL_PLAINTEXT | SASL_SSL
+            ssl_ca_content    : CA certificate PEM content (paste from textbox)
+            ssl_certificate_content : Client certificate PEM content
+            ssl_key_content   : Client private key PEM content
+            ssl_key_password  : Password for encrypted private key (optional)
+            acks              : Producer ack level — 0 | 1 | all  (default: all)
+            retries           : Number of retries on failure (default: 3)
+
         Returns:
-            JSON string with success status and details
+            JSON string with success status and delivery details
         """
-        # Process message payload
+
+        # ── Sanitize inputs ──────────────────────────────────────────────
+        bootstrap_servers = _safe_str(bootstrap_servers)
+        topic             = _safe_str(topic)
+        security_protocol = _safe_str(security_protocol, "PLAINTEXT").upper()
+        ssl_key_password  = _safe_str(ssl_key_password)
+        acks_val          = _safe_str(acks, "all")
+        retries_val       = _safe_int(retries, 3)
+
+        # Validate acks
+        if acks_val not in ["0", "1", "all"]:
+            self.logger.warning(f"Invalid acks value '{acks_val}', defaulting to 'all'")
+            acks_val = "all"
+
+        self.logger.info(
+            f"Starting | brokers={bootstrap_servers} | topic={topic} "
+            f"| protocol={security_protocol} | acks={acks_val} | retries={retries_val}"
+        )
+
+        # ── Normalize message payload ────────────────────────────────────
         payload = message
-        
-        # Handle JSON serialization
         if isinstance(payload, (dict, list)):
             payload = json.dumps(payload)
         elif isinstance(payload, str):
             try:
-                loaded_json = json.loads(payload)
-                payload = json.dumps(loaded_json)
+                payload = json.dumps(json.loads(payload))
             except Exception:
-                pass  # Not JSON, send as-is
+                pass  # Not JSON — send as plain string
 
         producer = None
-        
+
         try:
-            # Create temporary files from certificate content
-            cert_files = {
-                'ca': None,
-                'cert': None,
-                'key': None
+            # ── Build ssl_config matching your exact param keys ──────────
+            ssl_config = {
+                'bootstrap.servers':        bootstrap_servers,
+                'security.protocol':        security_protocol,
+                'ssl.ca.location':          None,
+                'ssl.certificate.location': None,
+                'ssl.key.location':         None,
+                'ssl.key.password':         ssl_key_password if ssl_key_password else None,
+                'acks':                     acks_val,
+                'retries':                  retries_val,
             }
-            
-            if security_protocol in ['SSL', 'SASL_SSL']:
-                self.logger.info(f"SSL/TLS enabled with protocol: {security_protocol}")
-                
-                # Create temp files from certificate content
-                if ssl_ca_content:
-                    cert_files['ca'] = self._create_temp_cert_file(
-                        ssl_ca_content, "ca_certificate"
-                    )
-                    self.logger.info("CA certificate loaded from content")
-                
-                if ssl_certificate_content:
-                    cert_files['cert'] = self._create_temp_cert_file(
-                        ssl_certificate_content, "client_certificate"
-                    )
-                    self.logger.info("Client certificate loaded from content")
-                
-                if ssl_key_content:
-                    cert_files['key'] = self._create_temp_cert_file(
-                        ssl_key_content, "client_key"
-                    )
-                    self.logger.info("Client key loaded from content")
 
-            # Build producer configuration
-            self.logger.info(f"Connecting to Kafka brokers at {bootstrap_servers}")
-            
+            # ── Create temp cert files from pasted content ───────────────
+            if security_protocol in ['SSL', 'SASL_SSL']:
+                self.logger.info(f"SSL/TLS enabled: {security_protocol}")
+
+                ssl_config['ssl.ca.location'] = self._create_temp_cert_file(
+                    ssl_ca_content, "ca"
+                )
+                ssl_config['ssl.certificate.location'] = self._create_temp_cert_file(
+                    ssl_certificate_content, "cert"
+                )
+                ssl_config['ssl.key.location'] = self._create_temp_cert_file(
+                    ssl_key_content, "key"
+                )
+
+            # ── Map ssl_config keys → kafka-python producer config ───────
             producer_config = {
-                'bootstrap_servers': bootstrap_servers,
-                'value_serializer': lambda v: v.encode('utf-8'),
-                'request_timeout_ms': int(timeout_ms),
-                'retries': int(retries),
-                'acks': acks if acks in ['0', '1', 'all'] else 'all',
+                'bootstrap_servers':  ssl_config['bootstrap.servers'],
+                'security_protocol':  ssl_config['security.protocol'],
+                'acks':               ssl_config['acks'],
+                'retries':            ssl_config['retries'],
+                'value_serializer':   lambda v: v.encode('utf-8'),
             }
 
-            # Add SSL configuration
-            if security_protocol in ['SSL', 'SASL_SSL']:
-                producer_config['security_protocol'] = security_protocol
-                
-                if cert_files['ca']:
-                    producer_config['ssl_cafile'] = cert_files['ca']
-                    self.logger.debug(f"Using CA cert file: {cert_files['ca']}")
-                
-                if cert_files['cert']:
-                    producer_config['ssl_certfile'] = cert_files['cert']
-                    self.logger.debug(f"Using client cert file: {cert_files['cert']}")
-                
-                if cert_files['key']:
-                    producer_config['ssl_keyfile'] = cert_files['key']
-                    self.logger.debug(f"Using client key file: {cert_files['key']}")
-                
-                if ssl_key_password and ssl_key_password.strip():
-                    producer_config['ssl_password'] = ssl_key_password
-                    self.logger.debug("SSL key password provided")
-                
-                # Optional SSL settings (uncomment if needed)
-                # producer_config['ssl_check_hostname'] = False
-                # producer_config['ssl_crlfile'] = None
-                
-                self.logger.debug("SSL configuration completed")
+            # Only add SSL file paths if they were actually created
+            if ssl_config['ssl.ca.location']:
+                producer_config['ssl_cafile'] = ssl_config['ssl.ca.location']
 
-            # Add SASL configuration
-            if security_protocol in ['SASL_PLAINTEXT', 'SASL_SSL']:
-                producer_config['security_protocol'] = security_protocol
-                
-                if sasl_mechanism and sasl_mechanism.strip():
-                    producer_config['sasl_mechanism'] = sasl_mechanism.upper()
-                    self.logger.debug(f"SASL mechanism: {sasl_mechanism}")
-                else:
-                    # Default to PLAIN if not specified
-                    producer_config['sasl_mechanism'] = 'PLAIN'
-                    self.logger.debug("SASL mechanism defaulted to PLAIN")
-                
-                if sasl_username and sasl_username.strip():
-                    producer_config['sasl_plain_username'] = sasl_username
-                    self.logger.debug(f"SASL username: {sasl_username}")
-                
-                if sasl_password and sasl_password.strip():
-                    producer_config['sasl_plain_password'] = sasl_password
-                    self.logger.debug("SASL password provided")
-                
-                self.logger.debug("SASL configuration completed")
+            if ssl_config['ssl.certificate.location']:
+                producer_config['ssl_certfile'] = ssl_config['ssl.certificate.location']
 
-            # Log final configuration (without sensitive data)
-            safe_config = {k: v for k, v in producer_config.items() 
-                          if 'password' not in k.lower()}
+            if ssl_config['ssl.key.location']:
+                producer_config['ssl_keyfile'] = ssl_config['ssl.key.location']
+
+            if ssl_config['ssl.key.password']:
+                producer_config['ssl_password'] = ssl_config['ssl.key.password']
+
+            # Remove security_protocol for PLAINTEXT (not needed)
+            if security_protocol == "PLAINTEXT":
+                producer_config.pop('security_protocol', None)
+
+            # Log sanitized config
+            safe_config = {
+                k: ("***" if any(s in k.lower() for s in ['password', 'key', 'secret']) else v)
+                for k, v in producer_config.items()
+                if k != 'value_serializer'
+            }
             self.logger.debug(f"Producer config (sanitized): {safe_config}")
 
-            # Create Kafka producer
+            # ── Create Kafka producer ────────────────────────────────────
             self.logger.info("Creating Kafka producer...")
             producer = KafkaProducer(**producer_config)
             self.logger.info("Kafka producer created successfully")
-            
-            # Prepare message
-            self.logger.debug(f"Preparing to send message to topic '{topic}'")
-            if len(payload) > 100:
-                self.logger.debug(f"Message preview: {payload[:100]}... (truncated)")
-            else:
-                self.logger.debug(f"Message content: {payload}")
-            
-            # Send message with optional key
-            if message_key and message_key.strip():
-                key_bytes = message_key.encode('utf-8')
-                self.logger.debug(f"Sending with message key: {message_key}")
-                future = producer.send(topic, key=key_bytes, value=payload)
-            else:
-                self.logger.debug("Sending without message key")
-                future = producer.send(topic, value=payload)
-            
-            # Wait for message to be delivered
-            self.logger.debug("Waiting for message delivery confirmation...")
-            result = future.get(timeout=int(timeout_ms) / 1000)
-            
+
+            # ── Send message ─────────────────────────────────────────────
+            self.logger.debug(f"Sending to topic='{topic}' | payload preview: {payload[:100]}")
+            future = producer.send(topic, value=payload)
+            result = future.get(timeout=30)
+
             success_msg = (
-                f"Message sent successfully to topic '{topic}' "
-                f"at partition {result.partition}, offset {result.offset}"
+                f"Message sent to topic '{topic}' | "
+                f"partition={result.partition} | offset={result.offset}"
             )
             self.logger.info(success_msg)
-            
-            response = {
-                'success': True,
-                'message': success_msg,
-                'topic': topic,
+
+            return json.dumps({
+                'success':   True,
+                'message':   success_msg,
+                'topic':     topic,
                 'partition': result.partition,
-                'offset': result.offset,
-                'timestamp': result.timestamp
-            }
-            
-            return json.dumps(response)
+                'offset':    result.offset,
+            })
 
         except RuntimeError as e:
-            # Certificate file creation errors
-            error_msg = f"Certificate setup error: {str(e)}"
-            self.logger.error(error_msg)
-            return json.dumps({'success': False, 'error': error_msg})
-        
+            msg = f"Certificate setup error: {e}"
+            self.logger.error(msg)
+            return json.dumps({'success': False, 'error': msg, 'error_type': 'CertificateError'})
+
         except KafkaError as e:
-            error_msg = f"Kafka error while sending message: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
-            return json.dumps({'success': False, 'error': error_msg, 'error_type': 'KafkaError'})
-        
-        except ValueError as e:
-            error_msg = f"Configuration error: {str(e)}"
-            self.logger.error(error_msg)
-            return json.dumps({'success': False, 'error': error_msg, 'error_type': 'ValueError'})
-        
-        except TimeoutError as e:
-            error_msg = f"Timeout error: {str(e)}"
-            self.logger.error(error_msg)
-            return json.dumps({'success': False, 'error': error_msg, 'error_type': 'TimeoutError'})
-        
+            msg = f"Kafka error: {e}"
+            self.logger.error(msg, exc_info=True)
+            return json.dumps({'success': False, 'error': msg, 'error_type': 'KafkaError'})
+
         except Exception as e:
-            error_msg = f"Unexpected error while sending message: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
-            return json.dumps({'success': False, 'error': error_msg, 'error_type': type(e).__name__})
-        
+            msg = f"Unexpected error: {e}"
+            self.logger.error(msg, exc_info=True)
+            return json.dumps({'success': False, 'error': msg, 'error_type': type(e).__name__})
+
         finally:
-            # Close producer
             if producer:
                 try:
-                    self.logger.debug("Flushing producer...")
                     producer.flush(timeout=5)
-                    self.logger.debug("Closing producer...")
                     producer.close(timeout=5)
-                    self.logger.info("Kafka producer closed successfully")
+                    self.logger.info("Kafka producer closed")
                 except Exception as e:
-                    self.logger.warning(f"Error closing Kafka producer: {e}")
-            
-            # Cleanup temporary certificate files
+                    self.logger.warning(f"Error closing producer: {e}")
+
             self._cleanup_temp_files()
-            self.logger.debug("Temporary certificate files cleaned up")
 
 
 if __name__ == "__main__":

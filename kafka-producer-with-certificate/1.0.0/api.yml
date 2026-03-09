@@ -1,150 +1,116 @@
-walkoff_version: 1.0.0
 app_version: 1.0.0
 name: kafka-producer-with-certificate
-display_name: Kafka Producer with Certificate Support
-description: Send messages to Kafka topic with full configuration support (SSL/Plaintext, custom settings)
-docker_image: gcr.io/prj-quorum-gc-prod-45bd/shuffle/kafka-producer-with-certificate:1.0.0
+description: Kafka Producer with SSL/TLS certificate support via text input
 contact_info:
   name: Gradient Cyber
   email: support@gradientcyber.com
+tags:
+  - kafka
+  - messaging
+  - ssl
+categories:
+  - messaging
+authentication:
+  required: false
 actions:
   - name: send_message_to_kafka_topic
-    description: Send a message to Kafka topic with configurable SSL/Plaintext security
+    description: Send a message to a Kafka topic with optional SSL/TLS security
     parameters:
       - name: bootstrap_servers
-        description: Comma-separated Kafka broker addresses (host:port)
-        required: true
+        description: "Kafka broker address(es). Example: broker.example.com:9093"
         multiline: false
-        example: 'kafka:9092'
+        required: true
+        example: "localhost:9092"
         schema:
           type: string
+
       - name: topic
-        description: Kafka topic name to publish message to
-        required: true
+        description: "Kafka topic name to send the message to"
         multiline: false
-        example: 'detections.biflow.ocsf'
+        required: true
+        example: "my-topic"
         schema:
           type: string
+
       - name: message
-        description: Message to publish (string or JSON)
-        required: true
+        description: "Message payload to send (plain string or JSON)"
         multiline: true
-        example: '{"event": "test", "timestamp": "2024-01-01T00:00:00Z"}'
+        required: true
+        example: '{"event": "test", "value": 123}'
         schema:
           type: string
+
       - name: security_protocol
-        description: Security protocol for Kafka connection
-        required: false
+        description: "Security protocol to use for Kafka connection"
         multiline: false
-        example: 'SSL'
+        required: false
+        example: "PLAINTEXT"
+        options:
+          - PLAINTEXT
+          - SSL
+          - SASL_PLAINTEXT
+          - SASL_SSL
         schema:
           type: string
-        options:
-          - 'PLAINTEXT'
-          - 'SSL'
-          - 'SASL_PLAINTEXT'
-          - 'SASL_SSL'
-      - name: ssl_ca_location
-        description: Upload CA certificate (.pem file)
+
+      - name: ssl_ca_content
+        description: "CA certificate content in PEM format (paste full certificate text)"
+        multiline: true
         required: false
-        multiline: false
-        example: ''
+        example: |
+          -----BEGIN CERTIFICATE-----
+          MIIDXTCCAkWgAwIBAgIJA...
+          -----END CERTIFICATE-----
         schema:
-          type: file
-      - name: ssl_certificate_location
-        description: Upload client certificate (.pem file)
+          type: string
+
+      - name: ssl_certificate_content
+        description: "Client certificate content in PEM format (paste full certificate text)"
+        multiline: true
         required: false
-        multiline: false
-        example: ''
+        example: |
+          -----BEGIN CERTIFICATE-----
+          MIIDXTCCAkWgAwIBAgIJA...
+          -----END CERTIFICATE-----
         schema:
-          type: file
-      - name: ssl_key_location
-        description: Upload client private key (.pem file)
+          type: string
+
+      - name: ssl_key_content
+        description: "Client private key content in PEM format (paste full key text)"
+        multiline: true
         required: false
-        multiline: false
-        example: ''
+        example: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvQIBADANBgkqhkiG9...
+          -----END PRIVATE KEY-----
         schema:
-          type: file
+          type: string
+
       - name: ssl_key_password
-        description: Password for SSL key file
-        required: false
+        description: "Password for encrypted private key (leave blank if key is not encrypted)"
         multiline: false
-        example: 'password123'
+        required: false
+        example: ""
         schema:
           type: string
-      - name: sasl_mechanism
-        description: SASL mechanism (if using SASL_* security protocol)
-        required: false
-        multiline: false
-        example: 'PLAIN'
-        schema:
-          type: string
-        options:
-          - 'PLAIN'
-          - 'SCRAM-SHA-256'
-          - 'SCRAM-SHA-512'
-      - name: sasl_username
-        description: SASL username (if using SASL)
-        required: false
-        multiline: false
-        example: 'kafka-user'
-        schema:
-          type: string
-      - name: sasl_password
-        description: SASL password (if using SASL)
-        required: false
-        multiline: false
-        example: 'kafka-password'
-        schema:
-          type: string
+
       - name: acks
-        description: Acknowledgement level for producer
-        required: false
+        description: "Producer acknowledgment level: 0 (none), 1 (leader), all (full ISR)"
         multiline: false
-        example: 'all'
-        schema:
-          type: string
+        required: false
+        example: "all"
         options:
-          - '0'
-          - '1'
-          - 'all'
+          - "all"
+          - "1"
+          - "0"
+        schema:
+          type: string
+
       - name: retries
-        description: Number of retries for failed messages
-        required: false
+        description: "Number of times to retry sending on failure"
         multiline: false
-        example: '5'
+        required: false
+        example: "3"
         schema:
           type: string
-      - name: timeout_ms
-        description: Request timeout in milliseconds
-        required: false
-        multiline: false
-        example: '30000'
-        schema:
-          type: string
-      - name: message_key
-        description: Optional key for the message (used for partitioning)
-        required: false
-        multiline: false
-        example: 'user-123'
-        schema:
-          type: string
-    returns:
-      schema:
-        type: object
-        properties:
-          success:
-            type: boolean
-          message:
-            type: string
-          topic:
-            type: string
-          partition:
-            type: integer
-            nullable: true
-          offset:
-            type: integer
-            nullable: true
-          error:
-            type: string
-            nullable: true
+large_image: ""

@@ -1,6 +1,7 @@
 app_version: 1.0.0
 name: kafka-producer-with-certificate
 description: Kafka Producer with SSL/TLS certificate support via text input
+docker_image: gcr.io/prj-quorum-gc-prod-45bd/shuffle/kafka-producer-with-certificate:1.0.0
 contact_info:
   name: Gradient Cyber
   email: support@gradientcyber.com

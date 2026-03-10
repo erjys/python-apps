@@ -1,0 +1,2 @@
+uncurl==0.0.10
+shuffle_sdk
